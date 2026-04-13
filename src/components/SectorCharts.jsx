@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Area, AreaChart, ComposedChart, Bar,
@@ -31,14 +31,38 @@ const CB_SAFE = {
 };
 
 const SECTOR_CONFIG = [
-  { key: 'labor', title: 'Employment Rate', unit: '%', baseline: 100 },
-  { key: 'spending', title: 'Consumer Spending', unit: 'idx', baseline: 100 },
-  { key: 'profits', title: 'Business Profits', unit: 'idx', baseline: 100 },
-  { key: 'govRevenue', title: 'Government Revenue', unit: 'idx', baseline: 100 },
-  { key: 'academic', title: 'Academic Institutions', unit: 'idx', baseline: 100 },
-  { key: 'healthcare', title: 'Healthcare', unit: 'idx', baseline: 100 },
-  { key: 'financialMarkets', title: 'Financial Markets', unit: 'idx', baseline: 100 },
-  { key: 'socialWelfare', title: 'Social Welfare Gap', unit: 'idx', baseline: 0 },
+  {
+    key: 'labor', title: 'Employment Rate', unit: '%', baseline: 100,
+    help: 'Net employment rate across all skill tiers (low, mid, high), weighted by workforce share. Starts at 100% (full employment). Driven by AI adoption speed, displacement vulnerability, new job creation, and retraining success. The dashed line marks the baseline.',
+  },
+  {
+    key: 'spending', title: 'Consumer Spending', unit: 'idx', baseline: 100,
+    help: 'Total consumer spending index (baseline = 100), combining low, mid, and high income tiers. Falls when employment drops (lower-income tiers are most sensitive). Boosted by UBI and broad AI access. This is the demand side of the economy \u2014 when it falls, businesses lose customers.',
+  },
+  {
+    key: 'profits', title: 'Business Profits', unit: 'idx', baseline: 100,
+    help: 'Business profit margin index (baseline = 100). Pulled in two opposing directions: UP by automation cost savings, DOWN by lost consumer demand. When the line rises above 100, cost savings are winning. Watch for the crossover point where demand destruction overtakes savings.',
+  },
+  {
+    key: 'govRevenue', title: 'Government Revenue', unit: 'idx', baseline: 100,
+    help: 'Total government tax revenue index (baseline = 100). Composed of income tax (driven by employment), payroll tax (driven by worker count), corporate tax (driven by profits), and robot tax if enabled. Policy costs (UBI, retraining) are subtracted. When this falls, the government has less capacity to fund safety nets.',
+  },
+  {
+    key: 'academic', title: 'Academic Institutions', unit: 'idx', baseline: 100,
+    help: 'Composite of enrollment demand and credential relevance. Enrollment rises when displaced workers seek retraining, but falls if credentials become less relevant due to AI. A declining line means the educational system is losing relevance faster than retraining demand grows.',
+  },
+  {
+    key: 'healthcare', title: 'Healthcare', unit: 'idx', baseline: 100,
+    help: 'Healthcare system pressure index (baseline = 100). Rising values mean increasing demand from unemployment-related stress, inequality-driven illness, and reduced access. AI efficiency in healthcare partially offsets this. Values above 100 indicate the system is under growing strain.',
+  },
+  {
+    key: 'financialMarkets', title: 'Financial Markets', unit: 'idx', baseline: 100,
+    help: 'Market stability index (baseline = 100), derived from business profits (40%), consumer spending (20%), inequality levels (20%), and trade competitiveness (20%). Below 100 signals growing instability risk. This is a composite indicator, not independently modeled.',
+  },
+  {
+    key: 'socialWelfare', title: 'Social Welfare Gap', unit: 'idx', baseline: 0,
+    help: 'The gap between social welfare needs and available funding. 0 = needs are fully met. Higher values = growing unmet need. Needs rise with unemployment; funding depends on tax revenue and safety net strength. A widening gap means more people falling through the cracks.',
+  },
 ];
 
 export default function SectorCharts({ result, events, selectedYear, onYearChange }) {
@@ -82,7 +106,10 @@ export default function SectorCharts({ result, events, selectedYear, onYearChang
           return (
             <div key={config.key} style={{ ...styles.chartCard, borderLeftColor: healthColor }}>
               <div style={styles.chartHeader}>
-                <span style={styles.chartTitle}>{config.title}</span>
+                <span style={styles.chartTitleRow}>
+                  <span style={styles.chartTitle}>{config.title}</span>
+                  <ChartHelp text={config.help} />
+                </span>
                 <span style={{
                   ...styles.healthDot,
                   background: healthColor,
@@ -127,7 +154,10 @@ export default function SectorCharts({ result, events, selectedYear, onYearChang
         {/* Inequality dual-axis chart */}
         <div style={{ ...styles.chartCard, borderLeftColor: COLORS.secondary, gridColumn: 'span 2' }}>
           <div style={styles.chartHeader}>
-            <span style={styles.chartTitle}>Inequality: Gini & Social Mobility</span>
+            <span style={styles.chartTitleRow}>
+              <span style={styles.chartTitle}>Inequality: Gini & Social Mobility</span>
+              <ChartHelp text={'Dual-axis chart. Red line (left axis): Gini coefficient \u2014 measures income inequality (0 = perfect equality, 1 = total inequality). The US baseline is ~0.39. Above 0.45 = historical instability warning. Above 0.50 = severe. Green line (right axis): Social mobility score (0\u2013100) \u2014 how easily people can improve their economic position. Driven by wage polarization, retraining access, and AI equity. When Gini rises and mobility falls, inequality is compounding across generations.'} />
+            </span>
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <ComposedChart data={sectors.inequality}>
@@ -149,6 +179,85 @@ export default function SectorCharts({ result, events, selectedYear, onYearChang
     </div>
   );
 }
+
+// ─── Chart Help Tooltip ──────────────────────────────────────────
+
+function ChartHelp({ text }) {
+  const [visible, setVisible] = useState(false);
+  const iconRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const show = () => {
+    if (iconRef.current) {
+      const rect = iconRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 6,
+        left: Math.max(8, Math.min(rect.left - 120, window.innerWidth - 320)),
+      });
+    }
+    setVisible(true);
+  };
+
+  return (
+    <>
+      <span
+        ref={iconRef}
+        style={helpStyles.icon}
+        onMouseEnter={show}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={show}
+        onBlur={() => setVisible(false)}
+        tabIndex={0}
+        role="button"
+        aria-label="Chart help"
+      >
+        ?
+      </span>
+      {visible && (
+        <div style={{
+          ...helpStyles.popup,
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+        }}>
+          {text}
+        </div>
+      )}
+    </>
+  );
+}
+
+const helpStyles = {
+  icon: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 16,
+    height: 16,
+    borderRadius: '50%',
+    background: '#2a2d3e',
+    color: '#6b7280',
+    fontSize: 10,
+    fontWeight: 700,
+    cursor: 'help',
+    marginLeft: 6,
+    flexShrink: 0,
+    border: '1px solid #374151',
+  },
+  popup: {
+    zIndex: 9999,
+    width: 300,
+    padding: '12px 14px',
+    background: '#1e2130',
+    border: '1px solid #3b82f6',
+    borderRadius: 8,
+    color: '#d1d5db',
+    fontSize: 12,
+    lineHeight: 1.6,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+    pointerEvents: 'none',
+  },
+};
 
 const styles = {
   container: {},
@@ -183,6 +292,7 @@ const styles = {
     alignItems: 'center',
     marginBottom: 8,
   },
+  chartTitleRow: { display: 'inline-flex', alignItems: 'center' },
   chartTitle: { fontSize: 12, fontWeight: 600, color: '#d1d5db' },
   healthDot: {
     padding: '2px 10px',
