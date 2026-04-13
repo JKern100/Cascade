@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { runSimulation, DEFAULT_PARAMS } from '../engine/simulationEngine.js';
 import { detectEvents } from '../engine/eventDetector.js';
+import { generateNarrative } from '../engine/narrativeEngine.js';
 import { PRESET_LIST } from '../presets/presets.js';
 import ControlPanel from './ControlPanel.jsx';
 import SectorCharts from './SectorCharts.jsx';
 import InsightsPanel from './InsightsPanel.jsx';
+import NarrativeModal from './NarrativeModal.jsx';
 
 const DEBOUNCE_MS = 300;
 
@@ -16,6 +18,13 @@ export default function Dashboard() {
   const [activePreset, setActivePreset] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [showNarrative, setShowNarrative] = useState(false);
+
+  const narrativeText = useMemo(() => {
+    if (!simResult || !showNarrative) return '';
+    const presetName = activePreset ? PRESET_LIST.find(p => p.id === activePreset)?.name : null;
+    return generateNarrative(params, simResult, events, presetName);
+  }, [simResult, events, params, activePreset, showNarrative]);
 
   // Debounced simulation
   useEffect(() => {
@@ -58,6 +67,9 @@ export default function Dashboard() {
               {PRESET_LIST.find(p => p.id === activePreset)?.name}
             </span>
           )}
+          <button style={styles.narrativeBtn} onClick={() => setShowNarrative(true)}>
+            Read Narrative
+          </button>
           <span style={styles.yearDisplay}>Year {selectedYear}</span>
         </div>
       </header>
@@ -124,6 +136,14 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Narrative Modal */}
+      {showNarrative && (
+        <NarrativeModal
+          narrative={narrativeText}
+          onClose={() => setShowNarrative(false)}
+        />
+      )}
     </div>
   );
 }
@@ -157,6 +177,17 @@ const styles = {
     borderRadius: 12,
     fontSize: 12,
     fontWeight: 600,
+  },
+  narrativeBtn: {
+    padding: '6px 16px',
+    background: '#1e3a5f',
+    border: '1px solid #3b82f6',
+    borderRadius: 8,
+    color: '#60a5fa',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   yearDisplay: {
     background: '#1a1d2e',
